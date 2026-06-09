@@ -16,7 +16,10 @@ FINAL_MANUAL_STRAIGHT_SPEED = 40
 FINAL_MANUAL_TURN_SPEED = 35
 
 # Very gentle turn only for ArUco auto tracking.
-ARUCO_AUTO_TURN_PWM = 70
+ARUCO_AUTO_TURN_PWM = 50
+# ArUco auto tracking turn is pulse-limited to prevent over-rotation.
+ARUCO_TURN_PULSE_MS = 180
+ARUCO_TURN_COOLDOWN_MS = 700
 
 # Final drive speed tuning for heavy vehicle.
 # Low PWM cannot overcome static friction, so every moving command has a minimum PWM.
@@ -34,6 +37,9 @@ FINAL_MANUAL_TURN_MIN_MOVE = 65
 
 # One-cycle kick when starting or changing direction.
 FINAL_START_BOOST = 75
+
+# 0->1 hard-coded left transition turn PWM.
+TRANSITION_LEFT_TURN_PWM = 100
 
 # Auto mode servo-body alignment.
 # If the camera sees the marker far from the vehicle center direction,
@@ -500,6 +506,8 @@ def main():
     last_cmd_time = int(time.time() * 1000)
     last_drive = "STOP"
     last_speed = 0
+    last_aruco_turn_ms = 0
+    aruco_turn_until_ms = 0
 
     print(f"[VEHICLE_STABLE] listen UDP 0.0.0.0:{listen_port}", flush=True)
     print("[VEHICLE_STABLE] no seq filtering; execute latest CMD directly", flush=True)
@@ -647,11 +655,18 @@ def main():
                 speed = 0
             else:
                 if turn_cmd:
-                    # Final demo rule:
-                    # Auto / Manual / Transition turn commands are always fixed to PWM 70.
-                    # No kick -> 30 transition. No ArUco tiny turn override.
-                    speed = 70
-                    print(f"[TURN_ALWAYS_PWM70] mode={mode} drive={drive} speed={speed}", flush=True)
+                    if mode == "TRANSITION_TURN_LEFT":
+                        # 0->1 transition: left turn must be strong enough.
+                        speed = TRANSITION_LEFT_TURN_PWM
+                        print(f"[TRANSITION_LEFT_PWM100] mode={mode} drive={drive} speed={speed}", flush=True)
+                    elif mode in ("GO_TO_TARGET", "GO_TO_TARGET_HOLD"):
+                        # ArUco tracking turn remains controlled by ArUco turn limiter.
+                        speed = ARUCO_AUTO_TURN_PWM
+                        print(f"[ARUCO_TINY_TURN_PWM] mode={mode} drive={drive} speed={speed}", flush=True)
+                    else:
+                        # Manual turn and 1->2 right transition remain PWM 70.
+                        speed = 70
+                        print(f"[FINAL_TURN_PWM70] mode={mode} drive={drive} speed={speed}", flush=True)
                 else:
                     if mode == "MANUAL":
                         cruise_speed = FINAL_MANUAL_STRAIGHT_SPEED
@@ -671,6 +686,32 @@ def main():
                 if speed > AUTO_TURN_SPEED_LIMIT:
                     speed = AUTO_TURN_SPEED_LIMIT
                 print(f"[AUTO_TURN_SPEED_LIMIT] mode={mode} drive={drive} speed={speed}", flush=True)
+            # ArUco turn pulse limiter.
+            # GO_TO_TARGET turn commands are allowed only for a short pulse.
+            # Repeated TURN_LEFT/RIGHT commands during cooldown are converted to FORWARD.
+            if mode in ("GO_TO_TARGET", "GO_TO_TARGET_HOLD") and turn_cmd:
+                if now >= aruco_turn_until_ms and (now - last_aruco_turn_ms) >= ARUCO_TURN_COOLDOWN_MS:
+                    aruco_turn_until_ms = now + ARUCO_TURN_PULSE_MS
+                    last_aruco_turn_ms = now
+                    speed = ARUCO_AUTO_TURN_PWM
+                    print(
+                        f"[ARUCO_TURN_PULSE_START] drive={drive} speed={speed} "
+                        f"pulse_ms={ARUCO_TURN_PULSE_MS} cooldown_ms={ARUCO_TURN_COOLDOWN_MS}",
+                        flush=True
+                    )
+                elif now < aruco_turn_until_ms:
+                    speed = ARUCO_AUTO_TURN_PWM
+                    print(f"[ARUCO_TURN_PULSE_KEEP] drive={drive} speed={speed}", flush=True)
+                else:
+                    drive = "FORWARD"
+                    speed = FINAL_AUTO_CRUISE_SPEED
+                    turn_cmd = False
+                    print(
+                        f"[ARUCO_TURN_COOLDOWN_FORWARD] speed={speed} "
+                        f"remaining_ms={ARUCO_TURN_COOLDOWN_MS - (now - last_aruco_turn_ms)}",
+                        flush=True
+                    )
+
             applied = apply_drive(drive, speed, mode)
 
             last_drive = applied

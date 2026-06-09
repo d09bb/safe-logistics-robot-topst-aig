@@ -475,7 +475,7 @@ def decide_manual(joy_x, joy_y, speed):
 def start_transition(state, from_target, now):
     """
     Start hard-coded transition:
-    0 -> 1: right turn 4s, wait 0.5s, forward 1s
+    0 -> 1: left turn 6s, wait 0.5s, forward 1s
     1 -> 2: right turn 4s, wait 0.5s, forward 2s
     """
     to_target = state.next_target_after(from_target)
@@ -487,14 +487,34 @@ def start_transition(state, from_target, now):
         print(f"[MISSION_FINISH] reached={from_target}", flush=True)
         return
 
-    turn_ms = int(os.environ.get("TOPST_TRANSITION_TURN_MS", "4000"))
+    # Direction/time per transition.
+    if from_target == 0 and to_target == 1:
+        turn_ms = int(os.environ.get("TOPST_TRANSITION_0_1_TURN_MS", "6000"))
+        turn_drive = "TURN_LEFT"
+        turn_steer = "LEFT"
+    elif from_target == 1 and to_target == 2:
+        turn_ms = int(os.environ.get("TOPST_TRANSITION_1_2_TURN_MS", "4000"))
+        turn_drive = "TURN_RIGHT"
+        turn_steer = "RIGHT"
+    else:
+        turn_ms = int(os.environ.get("TOPST_TRANSITION_TURN_MS", "4000"))
+        turn_drive = "TURN_RIGHT"
+        turn_steer = "RIGHT"
+
     ignore_ms = int(os.environ.get("TOPST_TRANSITION_OBSTACLE_IGNORE_MS", "7000"))
 
     state.current_target = to_target
     state.transition_from = from_target
     state.transition_to = to_target
+
+    # Keep old phase name to avoid disturbing the existing WAIT/BLIND_FORWARD state machine.
     state.phase = "TURN_RIGHT"
     state.phase_until_ms = now + turn_ms
+
+    # Actual turn command is stored separately.
+    state.transition_turn_drive = turn_drive
+    state.transition_turn_steer = turn_steer
+
     state.reached_count = 0
     state.last_target_seen_ms = 0
     state.last_target_cx = 160
@@ -508,9 +528,10 @@ def start_transition(state, from_target, now):
 
     print(
         f"[TRANSITION_START] {from_target}->{to_target} "
-        f"TURN_RIGHT={turn_ms}ms obstacle_ignore={ignore_ms}ms",
+        f"{turn_drive}={turn_ms}ms obstacle_ignore={ignore_ms}ms",
         flush=True,
     )
+
 
 
 def begin_reached_target(state, reached, now):
@@ -730,7 +751,7 @@ def role_topst(args):
         # Arrival gate before obstacle hold.
         # If the current target ArUco is close enough, treat it as TARGET_REACHED
         # even when ultrasonic/ToF sees the marker board as an obstacle.
-        elif aruco == 1 and marker_id == state.current_target and area >= args.reach_area:
+        elif state.phase == "NAV" and aruco == 1 and marker_id == state.current_target and area >= args.reach_area:
             if state.current_target == 0:
                 state.start0_target_seen = True
 
@@ -753,7 +774,7 @@ def role_topst(args):
                 begin_reached_target(state, state.current_target, now)
 
         # Obstacle stops only automatic driving.
-        elif (not args.ignore_obstacle) and obstacle_active:
+        elif state.phase != "HOLD" and (not args.ignore_obstacle) and obstacle_active:
             mode = "OBSTACLE_HOLD"
             drive = "STOP"
             speed = 0
@@ -776,10 +797,10 @@ def role_topst(args):
                 start_transition(state, reached, now)
                 mode = "TRANSITION_TURN"
                 target = state.current_target
-                drive = "TURN_RIGHT"
+                drive = getattr(state, "transition_turn_drive", "TURN_RIGHT")
                 speed = int(os.environ.get("TOPST_TRANSITION_TURN_SPEED", "70"))
-                steer = "RIGHT"
-                fault_text = f"TURN_{reached}_TO_{state.current_target}"
+                steer = getattr(state, "transition_turn_steer", "RIGHT")
+                fault_text = f"{drive}_{reached}_TO_{state.current_target}"
 
         # Hard-coded transition.
         elif state.phase in ("TURN_RIGHT", "WAIT", "BLIND_FORWARD"):
@@ -812,12 +833,12 @@ def role_topst(args):
                     print(f"[TRANSITION_DONE] target={state.current_target}", flush=True)
 
             if state.phase == "TURN_RIGHT":
-                mode = "TRANSITION_TURN_RIGHT"
+                drive = getattr(state, "transition_turn_drive", "TURN_RIGHT")
+                steer = getattr(state, "transition_turn_steer", "RIGHT")
+                mode = "TRANSITION_TURN_LEFT" if drive == "TURN_LEFT" else "TRANSITION_TURN_RIGHT"
                 target = state.current_target
-                drive = "TURN_RIGHT"
                 speed = turn_speed
-                steer = "RIGHT"
-                fault_text = f"TURN_{state.transition_from}_TO_{state.transition_to}"
+                fault_text = f"{drive}_{state.transition_from}_TO_{state.transition_to}"
 
             elif state.phase == "WAIT":
                 mode = "TRANSITION_WAIT"
