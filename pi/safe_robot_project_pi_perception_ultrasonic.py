@@ -15,7 +15,7 @@ ULTRASONIC_ECHO = int(os.environ.get("ULTRASONIC_ECHO", "25"))
 
 MIN_VALID_MM = int(os.environ.get("ULTRA_MIN_VALID_MM", "20"))
 DANGER_MM = int(os.environ.get("ULTRA_DANGER_MM", "120"))
-OBSTACLE_MM = int(os.environ.get("ULTRA_OBSTACLE_MM", "230"))
+OBSTACLE_MM = int(os.environ.get("ULTRA_OBSTACLE_MM", "100"))
 MAX_VALID_MM = int(os.environ.get("ULTRA_MAX_VALID_MM", "2000"))
 STALE_MS = int(os.environ.get("ULTRA_STALE_MS", "500"))
 MIN_ARUCO_AREA = int(os.environ.get("MIN_ARUCO_AREA", "8000"))
@@ -29,11 +29,11 @@ dist_buf = deque(maxlen=5)
 
 # ArUco false-positive / wrong-ID filter.
 # A marker ID is accepted only after the same ID appears repeatedly.
-ARUCO_STABLE_COUNT = int(os.environ.get("ARUCO_STABLE_COUNT", "3"))
+ARUCO_STABLE_COUNT = int(os.environ.get("ARUCO_STABLE_COUNT", "1"))
 MIN_ARUCO_AREA = int(os.environ.get("MIN_ARUCO_AREA", "8000"))
-MIN_ARUCO_AREA_ID0 = int(os.environ.get("MIN_ARUCO_AREA_ID0", "1200"))
-MIN_ARUCO_AREA_ID1 = int(os.environ.get("MIN_ARUCO_AREA_ID1", "1800"))
-MIN_ARUCO_AREA_ID2 = int(os.environ.get("MIN_ARUCO_AREA_ID2", "2500"))
+MIN_ARUCO_AREA_ID0 = int(os.environ.get("MIN_ARUCO_AREA_ID0", "0"))
+MIN_ARUCO_AREA_ID1 = int(os.environ.get("MIN_ARUCO_AREA_ID1", "0"))
+MIN_ARUCO_AREA_ID2 = int(os.environ.get("MIN_ARUCO_AREA_ID2", "0"))
 aruco_candidate_id = -1
 aruco_candidate_count = 0
 

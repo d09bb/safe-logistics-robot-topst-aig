@@ -9,5 +9,5 @@ echo "[AI-G] start perception receiver - obstacle tuned"
   --listen-port 7000 \
   --out-ip 192.168.60.1 \
   --out-port 6002 \
-  --threshold 80 \
-  --min-area 3000
+  --threshold 70 \
+  --min-area 800

@@ -393,23 +393,43 @@ def make_cmd(seq, ttl, mode, target, drive, speed, steer="CENTER", servo=90, buz
 
 def decide_follow(cx, center, deadband, speed, area=0):
     """
-    Soft ArUco follow:
-    - If marker is reasonably centered, go forward.
-    - Turn only when the marker is clearly off-center.
+    ArUco follow with very gentle left/right correction.
+
+    Policy:
+    - Keep ArUco near the camera center.
+    - If ArUco is left/right, issue TURN_LEFT / TURN_RIGHT.
+    - But turn speed is intentionally very low.
+    - Hard-coded transition turns are not handled here.
     """
+    cx = safe_int(cx, center)
+    center = safe_int(center, 320)
+    area = safe_int(area, 0)
+    speed = safe_int(speed, 35)
+
+    # Frame is 640 wide. If old center=160 is passed, force 320.
+    if center < 250:
+        center = 320
+
     err = cx - center
 
-    # area가 커질수록 회전을 줄인다.
-    if area >= 30000:
-        band = max(deadband, 170)
-    else:
-        band = max(deadband, 130)
+    # CENTER zone: not too wide, so the robot still tries to face ArUco.
+    # center=320, band=100:
+    #   cx < 220  -> gentle TURN_LEFT
+    #   220~420   -> FORWARD
+    #   cx > 420  -> gentle TURN_RIGHT
+    band = max(safe_int(deadband, 0), 100)
 
+    # Tiny/noisy marker: do not steer from it.
+    if area > 0 and area < 150:
+        return "FORWARD", speed, "CENTER"
+
+    # Very gentle turning command.
+    # Pi side will also limit GO_TO_TARGET turn PWM.
     if err < -band:
-        return "TURN_LEFT", speed, "LEFT"
+        return "TURN_LEFT", 15, "LEFT"
 
     if err > band:
-        return "TURN_RIGHT", speed, "RIGHT"
+        return "TURN_RIGHT", 15, "RIGHT"
 
     return "FORWARD", speed, "CENTER"
 
@@ -417,23 +437,37 @@ def decide_follow(cx, center, deadband, speed, area=0):
 def decide_manual(joy_x, joy_y, speed):
     """
     Manual joystick command.
-    joy center is around 512.
-    If direction is reversed on the real controller, swap the two signs here only.
+
+    Current calibrated state:
+    - forward/backward axis is correct
+    - left/right direction is reversed
+
+    Therefore:
+    - raw joy_x is used for forward/backward
+    - raw joy_y is used for left/right
+    - left/right return values are swapped
     """
-    x = safe_int(joy_x, 512)
-    y = safe_int(joy_y, 512)
+    raw_x = safe_int(joy_x, 512)
+    raw_y = safe_int(joy_y, 512)
 
     low = 350
     high = 700
 
-    if y < low:
+    # 현재 컨트롤러는 X/Y 축이 교환되어 들어온다.
+    fb = raw_x
+    lr = raw_y
+
+    # 앞/뒤는 현재 맞는 상태
+    if fb < low:
         return "FORWARD", speed, "CENTER"
-    if y > high:
+    if fb > high:
         return "BACKWARD", speed, "CENTER"
-    if x < low:
-        return "TURN_LEFT", speed, "LEFT"
-    if x > high:
+
+    # 좌/우만 서로 바뀐 상태이므로 여기만 반대로 둔다.
+    if lr < low:
         return "TURN_RIGHT", speed, "RIGHT"
+    if lr > high:
+        return "TURN_LEFT", speed, "LEFT"
 
     return "STOP", 0, "CENTER"
 
@@ -683,12 +717,42 @@ def role_topst(args):
 
         # Manual mode has priority over ultrasonic obstacle.
         # E-STOP / deadman / worker / fault are still handled above this branch.
+        # This allows the operator to manually move the vehicle away from an obstacle.
         elif manual == 1:
             mode = "MANUAL"
-            drive, speed, steer = decide_manual(joy_x, joy_y, int(os.environ.get("TOPST_MANUAL_SPEED", "45")))
+            drive, speed, steer = decide_manual(
+                joy_x,
+                joy_y,
+                int(os.environ.get("TOPST_MANUAL_SPEED", "45"))
+            )
             fault_text = "MANUAL"
 
-        # Obstacle has priority only in automatic mode.
+        # Arrival gate before obstacle hold.
+        # If the current target ArUco is close enough, treat it as TARGET_REACHED
+        # even when ultrasonic/ToF sees the marker board as an obstacle.
+        elif aruco == 1 and marker_id == state.current_target and area >= args.reach_area:
+            if state.current_target == 0:
+                state.start0_target_seen = True
+
+            state.last_target_seen_ms = now
+            state.last_target_cx = cx
+            state.last_target_area = area
+            state.reached_count += 1
+
+            mode = "ARRIVAL_CONFIRM"
+            target = state.current_target
+            drive = "STOP"
+            speed = 0
+            steer = "CENTER"
+            buzzer = "GOAL"
+            fault_text = f"ARRIVAL_CONFIRM_{state.reached_count}_{args.reach_count}"
+
+            if state.reached_count >= args.reach_count:
+                mode = "TARGET_REACHED"
+                fault_text = "TARGET_REACHED"
+                begin_reached_target(state, state.current_target, now)
+
+        # Obstacle stops only automatic driving.
         elif (not args.ignore_obstacle) and obstacle_active:
             mode = "OBSTACLE_HOLD"
             drive = "STOP"
@@ -824,12 +888,21 @@ def role_topst(args):
 
             elapsed = now - state.start0_forward_started_ms
 
-            mode = "START0_FORWARD" if elapsed <= start0_ms else "START0_FORWARD_EXTEND"
-            target = 0
-            drive = "FORWARD"
-            speed = start0_speed
-            steer = "CENTER"
-            fault_text = mode
+            if elapsed <= start0_ms:
+                mode = "START0_FORWARD"
+                target = 0
+                drive = "FORWARD"
+                speed = start0_speed
+                steer = "CENTER"
+                fault_text = "START0_FORWARD"
+            else:
+                mode = "START0_SEARCH"
+                target = 0
+                drive = "STOP"
+                speed = 0
+                steer = "CENTER"
+                buzzer = "WARN"
+                fault_text = "TARGET0_NOT_FOUND_AFTER_BLIND"
 
         else:
             mode = "SEARCH_TARGET"
@@ -1082,7 +1155,7 @@ def main():
     parser.add_argument("--center", type=int, default=160)
     parser.add_argument("--deadband", type=int, default=35)
     parser.add_argument("--speed", type=int, default=35)
-    parser.add_argument("--reach-area", type=int, default=3500)
+    parser.add_argument("--reach-area", type=int, default=60000)
     parser.add_argument("--reach-count", type=int, default=3)
     parser.add_argument("--perception-timeout-ms", type=int, default=3000)
     parser.add_argument("--target-lost-hold-ms", type=int, default=800)

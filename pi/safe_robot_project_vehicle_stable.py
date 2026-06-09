@@ -11,23 +11,26 @@ SERVO_CENTER = 90
 # Use a short kick only when starting/changing direction,
 # then keep low cruise speed for safety.
 FINAL_SAFE_KICK_PWM = 70
-FINAL_AUTO_CRUISE_SPEED = 40
-FINAL_MANUAL_STRAIGHT_SPEED = 35
-FINAL_MANUAL_TURN_SPEED = 30
+FINAL_AUTO_CRUISE_SPEED = 45
+FINAL_MANUAL_STRAIGHT_SPEED = 40
+FINAL_MANUAL_TURN_SPEED = 35
+
+# Very gentle turn only for ArUco auto tracking.
+ARUCO_AUTO_TURN_PWM = 70
 
 # Final drive speed tuning for heavy vehicle.
 # Low PWM cannot overcome static friction, so every moving command has a minimum PWM.
-FINAL_AUTO_GAIN = 1.20
-FINAL_AUTO_MAX = 65
-FINAL_AUTO_MIN_MOVE = 56
+FINAL_AUTO_GAIN = 1.30
+FINAL_AUTO_MAX = 72
+FINAL_AUTO_MIN_MOVE = 62
 
-FINAL_MANUAL_STRAIGHT_GAIN = 1.45
-FINAL_MANUAL_STRAIGHT_MAX = 85
-FINAL_MANUAL_STRAIGHT_MIN_MOVE = 62
+FINAL_MANUAL_STRAIGHT_GAIN = 1.55
+FINAL_MANUAL_STRAIGHT_MAX = 90
+FINAL_MANUAL_STRAIGHT_MIN_MOVE = 68
 
-FINAL_MANUAL_TURN_GAIN = 1.15
-FINAL_MANUAL_TURN_MAX = 65
-FINAL_MANUAL_TURN_MIN_MOVE = 58
+FINAL_MANUAL_TURN_GAIN = 1.25
+FINAL_MANUAL_TURN_MAX = 78
+FINAL_MANUAL_TURN_MIN_MOVE = 65
 
 # One-cycle kick when starting or changing direction.
 FINAL_START_BOOST = 75
@@ -644,8 +647,11 @@ def main():
                 speed = 0
             else:
                 if turn_cmd:
+                    # Final demo rule:
+                    # Auto / Manual / Transition turn commands are always fixed to PWM 70.
+                    # No kick -> 30 transition. No ArUco tiny turn override.
                     speed = 70
-                    print(f"[FINAL_TURN_PWM100] mode={mode} drive={drive} speed={speed}", flush=True)
+                    print(f"[TURN_ALWAYS_PWM70] mode={mode} drive={drive} speed={speed}", flush=True)
                 else:
                     if mode == "MANUAL":
                         cruise_speed = FINAL_MANUAL_STRAIGHT_SPEED
