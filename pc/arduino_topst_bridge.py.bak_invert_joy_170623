@@ -25,10 +25,6 @@ def to_int(v, default=0):
         return default
 
 
-def clamp(v, lo=0, hi=1023):
-    return max(lo, min(hi, int(v)))
-
-
 def normalize_controller_line(raw, seq_fallback):
     line = raw.strip()
     if not line:
@@ -66,16 +62,8 @@ def normalize_controller_line(raw, seq_fallback):
         else:
             deadman = 1
 
-        raw_joy_x = to_int(d.get("joy_x", d.get("joyx", d.get("joyX", 512))), 512)
-        raw_joy_y = to_int(d.get("joy_y", d.get("joyy", d.get("joyY", 512))), 512)
-
-        # Joystick direction correction.
-        # Current controller wiring is reversed in both axes:
-        #   physical LEFT/RIGHT is reversed
-        #   physical FORWARD/BACKWARD is reversed
-        # Convert before sending to TOPST so TOPST manual logic can stay normal.
-        joy_x = clamp(1023 - raw_joy_x)
-        joy_y = clamp(1023 - raw_joy_y)
+        joy_x = to_int(d.get("joy_x", d.get("joyx", d.get("joyX", 512))), 512)
+        joy_y = to_int(d.get("joy_y", d.get("joyy", d.get("joyY", 512))), 512)
 
         return (
             f"CONTROLLER seq={seq} "

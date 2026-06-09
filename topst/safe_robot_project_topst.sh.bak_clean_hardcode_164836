@@ -26,9 +26,9 @@ exec python3 -u safe_robot_project.py \
   --send-hz 10 \
   --ttl-ms 2000 \
   --center 320 \
-  --deadband 120 \
-  --speed 35 \
-  --reach-area 50000 \
+  --deadband 10 \
+  --speed 40 \
+  --reach-area 100000 \
   --reach-count 3 \
   --perception-timeout-ms 2000 \
   --target-lost-hold-ms 1200

@@ -26,3 +26,5 @@ __pycache__/
 *~
 .vscode/
 external/
+topst_latest_sync/
+pi_latest_sync/
