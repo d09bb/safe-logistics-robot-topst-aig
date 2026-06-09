@@ -40,6 +40,8 @@ FINAL_START_BOOST = 75
 
 # 0->1 hard-coded left transition turn PWM.
 TRANSITION_LEFT_TURN_PWM = 100
+# 1->2 hard-coded right transition turn PWM.
+TRANSITION_RIGHT_TURN_PWM = 100
 
 # Auto mode servo-body alignment.
 # If the camera sees the marker far from the vehicle center direction,
@@ -682,7 +684,12 @@ def main():
             # Reduce AUTO mode left/right turn speed only.
             # MANUAL turn, forward, backward, and stop are unchanged.
             AUTO_TURN_SPEED_LIMIT = 70
-            if mode != "MANUAL" and drive in ("TURN_LEFT", "TURN_RIGHT", "AVOID_LEFT", "AVOID_RIGHT"):
+
+            # Do not cap 0->1 hard-coded left transition.
+            # It must keep PWM 100 to rotate enough.
+            if mode == "TRANSITION_TURN_LEFT":
+                print(f"[TRANSITION_LEFT_NO_CAP] mode={mode} drive={drive} speed={speed}", flush=True)
+            elif mode != "MANUAL" and drive in ("TURN_LEFT", "TURN_RIGHT", "AVOID_LEFT", "AVOID_RIGHT"):
                 if speed > AUTO_TURN_SPEED_LIMIT:
                     speed = AUTO_TURN_SPEED_LIMIT
                 print(f"[AUTO_TURN_SPEED_LIMIT] mode={mode} drive={drive} speed={speed}", flush=True)
@@ -711,6 +718,26 @@ def main():
                         f"remaining_ms={ARUCO_TURN_COOLDOWN_MS - (now - last_aruco_turn_ms)}",
                         flush=True
                     )
+
+
+
+
+            elif mode == "TRANSITION_TURN_RIGHT" or (mode == "TRANSITION_TURN" and drive == "TURN_RIGHT"):
+                drive = "TURN_RIGHT"
+                speed = TRANSITION_RIGHT_TURN_PWM
+                print(f"[TRANSITION_TURN_FORCE_BEFORE_APPLY] mode={mode} drive={drive} speed={speed}", flush=True)
+
+            # FINAL FORCE: hard-coded transition turns must keep PWM 100.
+            # This runs immediately before motor output, after every speed cap / limiter.
+            if mode == "TRANSITION_TURN_LEFT" or (mode == "TRANSITION_TURN" and drive == "TURN_LEFT"):
+                drive = "TURN_LEFT"
+                speed = TRANSITION_LEFT_TURN_PWM
+                print(f"[TRANSITION_TURN_FORCE_BEFORE_APPLY] mode={mode} drive={drive} speed={speed}", flush=True)
+
+            elif mode == "TRANSITION_TURN_RIGHT" or (mode == "TRANSITION_TURN" and drive == "TURN_RIGHT"):
+                drive = "TURN_RIGHT"
+                speed = TRANSITION_RIGHT_TURN_PWM
+                print(f"[TRANSITION_TURN_FORCE_BEFORE_APPLY] mode={mode} drive={drive} speed={speed}", flush=True)
 
             applied = apply_drive(drive, speed, mode)
 

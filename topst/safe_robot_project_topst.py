@@ -489,11 +489,11 @@ def start_transition(state, from_target, now):
 
     # Direction/time per transition.
     if from_target == 0 and to_target == 1:
-        turn_ms = int(os.environ.get("TOPST_TRANSITION_0_1_TURN_MS", "6000"))
+        turn_ms = int(os.environ.get("TOPST_TRANSITION_0_1_TURN_MS", "2150"))
         turn_drive = "TURN_LEFT"
         turn_steer = "LEFT"
     elif from_target == 1 and to_target == 2:
-        turn_ms = int(os.environ.get("TOPST_TRANSITION_1_2_TURN_MS", "4000"))
+        turn_ms = int(os.environ.get("TOPST_TRANSITION_1_2_TURN_MS", "2150"))
         turn_drive = "TURN_RIGHT"
         turn_steer = "RIGHT"
     else:
