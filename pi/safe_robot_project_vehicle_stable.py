@@ -46,9 +46,9 @@ TRANSITION_RIGHT_TURN_PWM = 80
 # Auto mode servo-body alignment.
 # If the camera sees the marker far from the vehicle center direction,
 # rotate the vehicle first while slowly returning the camera to center.
-AUTO_SERVO_ALIGN_DEADBAND_DEG = 35
+AUTO_SERVO_ALIGN_DEADBAND_DEG = 15
 AUTO_SERVO_ALIGN_STEP_DEG = 5
-AUTO_SERVO_ALIGN_MIN_SPEED = 35
+AUTO_SERVO_ALIGN_MIN_SPEED = 55
 
 # After one body-align turn pulse, force forward briefly.
 # This prevents "turn-stop-search-turn" oscillation.
@@ -445,60 +445,53 @@ def to_int(v, default=0):
 
 def apply_auto_servo_alignment(mode, drive, speed):
     """
-    Auto alignment policy:
-    - If camera servo is off-center, give only one short body-turn pulse.
-    - Then force FORWARD for a short interval.
-    - This lets the robot approach the marker instead of rotating forever.
+    Servo-body alignment policy:
+    - If ArUco is detected while the camera is looking far left/right,
+      do not drive forward immediately.
+    - Rotate the vehicle toward the camera direction first.
+    - At the same time, return the camera servo toward 90 deg.
+    - When the servo is close to center, fall back to normal ArUco cx tracking.
     """
-    global current_servo_angle, align_forward_until_ms
-
-    t = now_ms()
+    global current_servo_angle
 
     if mode not in ("GO_TO_TARGET", "GO_TO_TARGET_HOLD"):
-        align_forward_until_ms = 0
-        return drive, speed
+        return drive, speed, mode
 
     if current_servo_angle is None:
-        return drive, speed
-
-    # Forward commit window after a turn pulse.
-    if t < align_forward_until_ms:
-        print(
-            f"[AUTO_SERVO_ALIGN_FORWARD_COMMIT] angle={current_servo_angle} "
-            f"until={align_forward_until_ms} now={t}",
-            flush=True,
-        )
-        return "FORWARD", max(int(speed), AUTO_SERVO_ALIGN_FORWARD_SPEED)
+        return drive, speed, mode
 
     err = int(current_servo_angle) - SERVO_CENTER
 
+    # Servo is already near vehicle front direction.
     if abs(err) <= AUTO_SERVO_ALIGN_DEADBAND_DEG:
-        return drive, speed
+        return drive, speed, mode
 
     if err > 0:
-        # Camera is looking left, so rotate vehicle left briefly,
-        # while moving the camera back toward center.
-        new_angle = max(SERVO_CENTER, int(current_servo_angle) - AUTO_SERVO_ALIGN_STEP_DEG)
+        # Camera is looking left. Rotate vehicle left while servo returns to center.
+        old_angle = int(current_servo_angle)
+        new_angle = max(SERVO_CENTER, old_angle - AUTO_SERVO_ALIGN_STEP_DEG)
         set_servo_angle(new_angle, force=True)
-        align_forward_until_ms = t + AUTO_SERVO_ALIGN_FORWARD_COMMIT_MS
+
         print(
-            f"[AUTO_SERVO_ALIGN_TURN_PULSE] marker_side=LEFT angle={current_servo_angle} "
-            f"err={err} override=TURN_LEFT forward_until={align_forward_until_ms}",
+            f"[SERVO_BODY_ALIGN] marker_side=LEFT "
+            f"servo_old={old_angle} servo_new={new_angle} "
+            f"err={err} drive=TURN_LEFT speed={AUTO_SERVO_ALIGN_MIN_SPEED}",
             flush=True,
         )
-        return "TURN_LEFT", max(int(speed), AUTO_SERVO_ALIGN_MIN_SPEED)
+        return "TURN_LEFT", AUTO_SERVO_ALIGN_MIN_SPEED, "SERVO_BODY_ALIGN"
 
-    # Camera is looking right, so rotate vehicle right briefly,
-    # while moving the camera back toward center.
-    new_angle = min(SERVO_CENTER, int(current_servo_angle) + AUTO_SERVO_ALIGN_STEP_DEG)
+    # Camera is looking right. Rotate vehicle right while servo returns to center.
+    old_angle = int(current_servo_angle)
+    new_angle = min(SERVO_CENTER, old_angle + AUTO_SERVO_ALIGN_STEP_DEG)
     set_servo_angle(new_angle, force=True)
-    align_forward_until_ms = t + AUTO_SERVO_ALIGN_FORWARD_COMMIT_MS
+
     print(
-        f"[AUTO_SERVO_ALIGN_TURN_PULSE] marker_side=RIGHT angle={current_servo_angle} "
-        f"err={err} override=TURN_RIGHT forward_until={align_forward_until_ms}",
+        f"[SERVO_BODY_ALIGN] marker_side=RIGHT "
+        f"servo_old={old_angle} servo_new={new_angle} "
+        f"err={err} drive=TURN_RIGHT speed={AUTO_SERVO_ALIGN_MIN_SPEED}",
         flush=True,
     )
-    return "TURN_RIGHT", max(int(speed), AUTO_SERVO_ALIGN_MIN_SPEED)
+    return "TURN_RIGHT", AUTO_SERVO_ALIGN_MIN_SPEED, "SERVO_BODY_ALIGN"
 
 
 def apply_drive(drive, speed, mode="UNKNOWN"):
@@ -671,10 +664,9 @@ def main():
             else:
                 update_servo_by_mode(mode, steer=steer, servo_cmd=servo_cmd)
 
-            # AUTO_SERVO_BODY_ALIGN is intentionally disabled.
-            # Direction is controlled only by TOPST ArUco cx decision.
-            # Servo angle must not override FORWARD/TURN commands.
-            # drive, speed = apply_auto_servo_alignment(mode, drive, speed)
+            # AUTO_SERVO_BODY_ALIGN enabled.
+            # If the marker is found at a side servo angle, align the vehicle body first.
+            drive, speed, mode = apply_auto_servo_alignment(mode, drive, speed)
 
             # FINAL_TURN_DIRECTION_SPEED_FIX
             # Forward/backward keep the previous safe cruise policy.
@@ -693,6 +685,10 @@ def main():
                         # ArUco tracking turn remains controlled by ArUco turn limiter.
                         speed = ARUCO_AUTO_TURN_PWM
                         print(f"[ARUCO_TINY_TURN_PWM] mode={mode} drive={drive} speed={speed}", flush=True)
+                    elif mode == "SERVO_BODY_ALIGN":
+                        # Dynamic steering alignment turn speed.
+                        speed = AUTO_SERVO_ALIGN_MIN_SPEED
+                        print(f"[SERVO_BODY_ALIGN_PWM] mode={mode} drive={drive} speed={speed}", flush=True)
                     else:
                         # Manual turn and 1->2 right transition remain PWM 70.
                         speed = 70

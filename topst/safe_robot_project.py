@@ -729,7 +729,7 @@ def role_topst(args):
             drive = "STOP"
             fault_text = "AIG_FAULT"
 
-        elif state.finished or state.phase == "FINISH":
+        elif manual != 1 and (state.finished or state.phase == "FINISH"):
             mode = "FINISH"
             drive = "STOP"
             speed = 0
