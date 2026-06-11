@@ -15,7 +15,7 @@ ULTRASONIC_ECHO = int(os.environ.get("ULTRASONIC_ECHO", "25"))
 
 MIN_VALID_MM = int(os.environ.get("ULTRA_MIN_VALID_MM", "20"))
 DANGER_MM = int(os.environ.get("ULTRA_DANGER_MM", "120"))
-OBSTACLE_MM = int(os.environ.get("ULTRA_OBSTACLE_MM", "100"))
+OBSTACLE_MM = int(os.environ.get("ULTRA_OBSTACLE_MM", "160"))
 MAX_VALID_MM = int(os.environ.get("ULTRA_MAX_VALID_MM", "2000"))
 STALE_MS = int(os.environ.get("ULTRA_STALE_MS", "500"))
 MIN_ARUCO_AREA = int(os.environ.get("MIN_ARUCO_AREA", "8000"))

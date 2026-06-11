@@ -39,7 +39,7 @@ FINAL_MANUAL_TURN_MIN_MOVE = 65
 FINAL_START_BOOST = 75
 
 # 0->1 hard-coded left transition turn PWM.
-TRANSITION_LEFT_TURN_PWM = 100
+TRANSITION_LEFT_TURN_PWM = 80
 # 1->2 hard-coded right transition turn PWM.
 TRANSITION_RIGHT_TURN_PWM = 100
 
@@ -188,6 +188,30 @@ def turn_right(speed):
     set_raw("LR", "F", speed)
     set_raw("RF", "B", speed)
     set_raw("RR", "B", speed)
+
+def transition_pivot_left(speed):
+    """
+    0->1 transition-only left pivot turn.
+    Left wheels stop, right wheels move forward.
+    This avoids forcing LF backward during left turn.
+    """
+    fwd = raw_forward_for_vehicle()
+    set_raw("LF", "S", 0)
+    set_raw("LR", "S", 0)
+    set_raw("RF", fwd, speed)
+    set_raw("RR", fwd, speed)
+
+def transition_pivot_right(speed):
+    """
+    1->2 transition-only right pivot turn.
+    Right wheels stop, left wheels move forward.
+    This avoids forcing RF backward during right turn.
+    """
+    fwd = raw_forward_for_vehicle()
+    set_raw("LF", fwd, speed)
+    set_raw("LR", fwd, speed)
+    set_raw("RF", "S", 0)
+    set_raw("RR", "S", 0)
 
 def spin_vehicle(direction, duration=0.30):
     """
@@ -478,6 +502,8 @@ def apply_auto_servo_alignment(mode, drive, speed):
 
 
 def apply_drive(drive, speed, mode="UNKNOWN"):
+    # Hard-coded transition turns must use normal tank turn.
+    # Do not use pivot turn here, because pivot makes the vehicle move outward.
     if drive == "FORWARD":
         forward(speed)
         return "FORWARD"
@@ -493,6 +519,8 @@ def apply_drive(drive, speed, mode="UNKNOWN"):
     else:
         stop_all()
         return "STOP"
+
+
 
 def main():
     global last_search_target, last_target_servo_angle, servo_last_mode
