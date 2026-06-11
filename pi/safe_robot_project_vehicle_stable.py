@@ -41,7 +41,7 @@ FINAL_START_BOOST = 75
 # 0->1 hard-coded left transition turn PWM.
 TRANSITION_LEFT_TURN_PWM = 80
 # 1->2 hard-coded right transition turn PWM.
-TRANSITION_RIGHT_TURN_PWM = 100
+TRANSITION_RIGHT_TURN_PWM = 80
 
 # Auto mode servo-body alignment.
 # If the camera sees the marker far from the vehicle center direction,

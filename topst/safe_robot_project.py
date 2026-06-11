@@ -489,11 +489,11 @@ def start_transition(state, from_target, now):
 
     # Direction/time per transition.
     if from_target == 0 and to_target == 1:
-        turn_ms = int(os.environ.get("TOPST_TRANSITION_0_1_TURN_MS", "2150"))
+        turn_ms = int(os.environ.get("TOPST_TRANSITION_0_1_TURN_MS", "2800"))
         turn_drive = "TURN_LEFT"
         turn_steer = "LEFT"
     elif from_target == 1 and to_target == 2:
-        turn_ms = int(os.environ.get("TOPST_TRANSITION_1_2_TURN_MS", "2150"))
+        turn_ms = int(os.environ.get("TOPST_TRANSITION_1_2_TURN_MS", "1800"))
         turn_drive = "TURN_RIGHT"
         turn_steer = "RIGHT"
     else:
@@ -774,13 +774,35 @@ def role_topst(args):
                 begin_reached_target(state, state.current_target, now)
 
         # Obstacle stops only automatic driving.
-        elif state.phase != "HOLD" and (not args.ignore_obstacle) and obstacle_active:
+        # During initial blind forward to target 0, stop immediately on raw obstacle.
+        # This prevents the vehicle from driving into an obstacle before debounce latches.
+        elif (
+            state.phase != "HOLD"
+            and (not args.ignore_obstacle)
+            and (
+                obstacle_active
+                or (
+                    state.current_target == 0
+                    and not state.start0_target_seen
+                    and state.start0_forward_started_ms > 0
+                    and raw_obstacle == 1
+                )
+            )
+        ):
             mode = "OBSTACLE_HOLD"
             drive = "STOP"
             speed = 0
             steer = "CENTER"
             buzzer = "WARN"
-            fault_text = "OBSTACLE"
+            if (
+                state.current_target == 0
+                and not state.start0_target_seen
+                and state.start0_forward_started_ms > 0
+                and raw_obstacle == 1
+            ):
+                fault_text = "START0_RAW_OBSTACLE"
+            else:
+                fault_text = "OBSTACLE"
 
         # Hold at selected target.
         elif state.phase == "HOLD":

@@ -36,7 +36,7 @@ export ULTRA_STALE_MS=${ULTRA_STALE_MS:-500}
 
 # Ultrasonic obstacle threshold
 # 130mm = 13cm
-export ULTRA_OBSTACLE_MM=160
+export ULTRA_OBSTACLE_MM=250
 
 # ArUco far-distance tuning
 export MIN_ARUCO_AREA=0
