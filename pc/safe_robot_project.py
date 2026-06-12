@@ -761,7 +761,7 @@ def main():
     parser.add_argument("--cmd-port", type=int, default=5006)
     parser.add_argument("--topst-ip", default="192.168.50.20")
     parser.add_argument("--topst-port", type=int, default=5005)
-    parser.add_argument("--pi-ip", default="192.168.0.24")
+    parser.add_argument("--pi-ip", default="192.168.0.12")
     parser.add_argument("--pi-cmd-port", type=int, default=5006)
     parser.add_argument("--force-obstacle0", action="store_true")
     parser.add_argument("--force-id", type=int, default=None)

@@ -28,3 +28,9 @@ __pycache__/
 external/
 topst_latest_sync/
 pi_latest_sync/
+
+# local backup files
+*.bak
+*.bak.*
+*_bak*
+*.bak_*

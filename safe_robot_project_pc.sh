@@ -25,5 +25,5 @@ python3 "$MAIN" --role pc_gateway \
   --cmd-port 5006 \
   --topst-ip 192.168.50.20 \
   --topst-port 5005 \
-  --pi-ip 192.168.0.24 \
+  --pi-ip 192.168.0.12 \
   --pi-cmd-port 5006
