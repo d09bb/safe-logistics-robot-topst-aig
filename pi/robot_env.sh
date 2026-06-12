@@ -5,7 +5,7 @@ export PC_TOPST_IP=${PC_TOPST_IP:-192.168.50.10}
 export TOPST_IP=${TOPST_IP:-192.168.50.20}
 
 # PC <-> Raspberry Pi Wi-Fi network
-export PI_IP=${PI_IP:-192.168.0.24}
+export PI_IP=${PI_IP:-192.168.0.12}
 
 # PC address used by Raspberry Pi when sending perception
 export PC_IP=${PC_IP:-192.168.0.8}
